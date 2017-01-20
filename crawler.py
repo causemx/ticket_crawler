@@ -12,6 +12,7 @@ import codecs
 import threading
 from bs4 import BeautifulSoup
 from six import u
+from mail import mail
 
 __version__ = '1.0'
 
@@ -36,6 +37,7 @@ def crawler(cmdline=None):
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-i', metavar=('START_INDEX', 'END_INDEX'), \
         type=int, nargs=2, help="Start and end index")
+    group.add_argument('-l', metavar='LAST_INDEX', help="Last index")
     group.add_argument('-a', metavar='ARTICLE_ID', \
         help="Article ID")
     parser.add_argument('-v', '--version', action='version', \
@@ -45,17 +47,11 @@ def crawler(cmdline=None):
         args = parser.parse_args(cmdline)
     else:
        args = parser.parse_args()
-    board = args.b
 
-    if args.i:
-        start = args.i[0]
-        if args.i[1] == -1:
-            end = getLastPage(board)
-        else:
-            end = args.i[1]
+    def _core(index_start, index_end, filename):
         index = start
-        filename = board + '-' + str(start) + '-' + str(end) + '.json'
         store(filename, u'{"articles": [\n', 'w')
+
         for i in range(end-start+1):
             index = start + i
             print('Processing index:', str(index))
@@ -70,7 +66,6 @@ def crawler(cmdline=None):
             divs = soup.find_all("div", "r-ent")
             for div in divs:
                 try:
-                    # ex. link would be <a href="/bbs/PublicServan/M.1127742013.A.240.html">Re: [問題] 職等</a>
                     href = div.find('a')['href']
                     link = PTT_URL + href
                     article_id = re.sub('\.html', '', href.split('/')[-1])
@@ -82,6 +77,25 @@ def crawler(cmdline=None):
                     pass
             time.sleep(TIME_DELAY)
         store(filename, u']}', 'a')
+
+    board = args.b
+
+    if args.i:
+        start = args.i[0]
+        if args.i[1] == -1:
+            end = getLastPage(board)
+        else:
+            end = args.i[1]
+
+        filename = board + '-' + str(start) + '-' + str(end) + '.json'
+        _core(start, end, filename)
+
+    elif args.l:
+        end = getLastPage(board)
+        start = end -1
+        filename = board + '-' + str(start) + '-' + str(end) + '.json'
+        _core(start, end, filename)
+
     else:  # args.a
         article_id = args.a
         link = PTT_URL + '/bbs/' + board + '/' + article_id + '.html'
@@ -115,17 +129,13 @@ def parse(link, article_id, board):
         for meta in main_content.select('div.article-metaline-right'):
             meta.extract()
 
-    print(title)
-
-    """
     # insert rules here
     print(title)
-    if all(x in title for x in (u'售票', u'張惠妹')) == False:
-        return None
+    if u'售票' in title:
+        if any(x in title for x in (u'阿妹', u'張惠妹', u'烏托邦')) == True:
+            print('GOT IT!!')
     else:
-        print('GOT IT!', title)
-    """
-
+        return None
 
     # remove and keep push nodes
     pushes = main_content.find_all('div', class_='push')
@@ -198,6 +208,7 @@ def getLastPage(board):
     first_page = re.search(r'href="/bbs/' + board + '/index(\d+).html">&lsaquo;', content)
     if first_page is None:
         return 1
+
     return int(first_page.group(1)) + 1
 
 
