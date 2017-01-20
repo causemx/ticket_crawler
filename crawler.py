@@ -12,11 +12,12 @@ import codecs
 import threading
 from bs4 import BeautifulSoup
 from six import u
-from mail import mail
+from mail.gmail import Gmail
+
 
 __version__ = '1.0'
 
-TIME_DELAY = 0.1
+TIME_DELAY = 0.2
 PTT_URL = 'https://www.ptt.cc'
 
 # if python 2, disable verify flag in requests.get()
@@ -50,7 +51,9 @@ def crawler(cmdline=None):
 
     def _core(index_start, index_end, filename):
         index = start
-        store(filename, u'{"articles": [\n', 'w')
+        data = u''
+        data += u'{"articles": [\n'
+        #store(filename, u'{"articles": [\n', 'w')
 
         for i in range(end-start+1):
             index = start + i
@@ -70,13 +73,19 @@ def crawler(cmdline=None):
                     link = PTT_URL + href
                     article_id = re.sub('\.html', '', href.split('/')[-1])
                     if div == divs[-1] and i == end-start:
-                        store(filename, parse(link, article_id, board) + '\n', 'a')
+                        #store(filename, parse(link, article_id, board) + '\n', 'a')
+                        data += parse(link, article_id, board) + '\n'
+
                     else:
-                        store(filename, parse(link, article_id, board) + ',\n', 'a')
+                        #store(filename, parse(link, article_id, board) + ',\n', 'a')
+                        data += parse(link, article_id, board) + ',\n'
+
                 except:
                     pass
             time.sleep(TIME_DELAY)
-        store(filename, u']}', 'a')
+        #store(filename, u']}', 'a')
+        data += u']}'
+        store(filename, data, 'w')
 
     board = args.b
 
@@ -131,7 +140,7 @@ def parse(link, article_id, board):
 
     # insert rules here
     print(title)
-    if u'售票' in title:
+    if u'換票' in title:
         if any(x in title for x in (u'阿妹', u'張惠妹', u'烏托邦')) == True:
             print('GOT IT!!')
     else:
@@ -197,7 +206,7 @@ def parse(link, article_id, board):
         'messages': messages
     }
     # print 'original:', d
-    return json.dumps(data, indent=4, sort_keys=True, ensure_ascii=False)
+    return json.dumps(data, indent=4, sort_keys=True, ensure_ascii=False).encode('utf-8')
 
 
 def getLastPage(board):
@@ -213,12 +222,22 @@ def getLastPage(board):
 
 
 def store(filename, data, mode):
+
     if data is None:
         return
-    else:
-        with codecs.open(filename, mode, encoding='utf-8') as f:
-            f.write(data)
+    with codecs.open(filename, mode, encoding='utf-8') as f:
+        f.write(data)
 
+    to = "allen.cause@gmail.com"
+    sender = "allen.cause@gmail.com"
+    subject = "subject"
+    msgHtml = "Hi<br/>Html Email"
+    msgPlain = data
+    print(msgPlain)
+    """
+    gmail = Gmail()
+    gmail.SendMessage(sender, to, subject, msgHtml, msgPlain)
+    """
 
 EXECUTE_TIME = 30
 """

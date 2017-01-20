@@ -51,7 +51,7 @@ class Gmail(object):
         msg['From'] = sender
         msg['To'] = to
         msg.attach(MIMEText(msgPlain, 'plain'))
-        msg.attach(MIMEText(msgHtml, 'html'))
+        #msg.attach(MIMEText(msgHtml, 'html'))
         body = {'raw': base64.urlsafe_b64encode(msg.as_string())}
         return body
 
