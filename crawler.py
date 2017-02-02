@@ -13,12 +13,11 @@ import threading
 from bs4 import BeautifulSoup
 from six import u
 from mail.gmail import Gmail
-from duplicate_checker import Checker
 
 
 __version__ = '1.0'
 
-TIME_DELAY = 0.2
+TIME_DELAY = 0.1
 PTT_URL = 'https://www.ptt.cc'
 
 # if python 2, disable verify flag in requests.get()
@@ -26,8 +25,6 @@ VERIFY = True
 if sys.version_info[0] < 3:
     VERIFY = False
     requests.packages.urllib3.disable_warnings()
-
-c = Checker()
 
 
 def crawler(cmdline=None):
@@ -54,7 +51,7 @@ def crawler(cmdline=None):
 
     def _core(index_start, index_end, filename):
         index = start
-        store(filename, u'{"articles": [\n', 'w')
+        data = ''
 
         for i in range(end-start+1):
             index = start + i
@@ -73,15 +70,12 @@ def crawler(cmdline=None):
                     href = div.find('a')['href']
                     link = PTT_URL + href
                     article_id = re.sub('\.html', '', href.split('/')[-1])
-                    if div == divs[-1] and i == end-start:
-                        store(filename, parse(link, article_id, board) + '\n', 'a')
-                    else:
-                        store(filename, parse(link, article_id, board) + ',\n', 'a')
+                    data = data + parse(link, article_id, board)
                 except:
-                    raise
+                    pass
             time.sleep(TIME_DELAY)
 
-        store(filename, u']}', 'a')
+        store(filename, data)
 
     board = args.b
 
@@ -137,13 +131,12 @@ def parse(link, article_id, board):
 
     # insert rules here
     print(title)
-    """
     if u'換票' in title:
         if any(x in title for x in (u'阿妹', u'張惠妹', u'烏托邦')) == True:
             print('GOT IT!!')
     else:
         return None
-    """
+
 
     # remove and keep push nodes
     pushes = main_content.find_all('div', class_='push')
@@ -205,16 +198,12 @@ def parse(link, article_id, board):
         'messages': messages
     }
 
-    """
+    _u = data["article_title"] + "\n" + data["author"] + "\n" + data["content"]+ "\n"
 
-    if c.check_file_duplicate(article_id) == False:
-        c.write_file(article_id)
-    else:
-        return None
-    """
 
     # print 'original:', d
-    return json.dumps(data, indent=4, sort_keys=True, ensure_ascii=False)
+    # return json.dumps(data, indent=4, sort_keys=True, ensure_ascii=False)
+    return _u
 
 
 def getLastPage(board):
@@ -229,10 +218,21 @@ def getLastPage(board):
     return int(first_page.group(1)) + 1
 
 
-def store(filename, data, mode):
+gmail = Gmail()
+
+def store(filename, data):
+    to = "allen.cause@gmail.com"
+    sender = "allen.cause@gmail.com"
+    subject = "subject"
+    msgHtml = "Hi<br/>Html Email"
+    msgPlain = codecs.encode(data, 'utf-8)')
+
+    gmail.SendMessage(sender, to, subject, msgHtml, msgPlain)
+
+    """
     with codecs.open(filename, mode, encoding='utf-8') as f:
         f.write(data)
-
+    """
 
 EXECUTE_TIME = 30
 
