@@ -13,6 +13,8 @@ import threading
 from bs4 import BeautifulSoup
 from six import u
 from mail.gmail import Gmail
+from pony.orm import *
+from models import Post
 
 
 __version__ = '1.0'
@@ -20,11 +22,39 @@ __version__ = '1.0'
 TIME_DELAY = 0.1
 PTT_URL = 'https://www.ptt.cc'
 
+gmail = Gmail()
+
 # if python 2, disable verify flag in requests.get()
 VERIFY = True
 if sys.version_info[0] < 3:
     VERIFY = False
     requests.packages.urllib3.disable_warnings()
+
+
+
+@db_session
+def add_post(article_id, article_title, date, author, content):
+    s = select(p for p in Post if p.article_id==article_id)
+    if not s:
+        Post(
+        article_id=article_id,
+        article_title=article_title,
+        date=date,
+        author=author,
+        content=content)
+
+        data = ''
+        data = u'\u6a19\u984c\uff1a' + article_title + "\n" + \
+        u'\u65e5\u671f\uff1a' + date + "\n" + \
+        u'\u4f5c\u8005\uff1a' + author + "\n" + content
+        print("send message...")
+        gmail.SendMessage(
+            "allen.cause@gmail.com",
+            "allen.cause@gmail.com",
+            article_title,
+            "",
+            codecs.encode(data, 'utf-8'))
+
 
 
 def crawler(cmdline=None):
@@ -51,7 +81,7 @@ def crawler(cmdline=None):
 
     def _core(index_start, index_end, filename):
         index = start
-        data = ''
+        store(filename, u'{"articles": [\n', 'w')
 
         for i in range(end-start+1):
             index = start + i
@@ -70,12 +100,21 @@ def crawler(cmdline=None):
                     href = div.find('a')['href']
                     link = PTT_URL + href
                     article_id = re.sub('\.html', '', href.split('/')[-1])
-                    data = data + parse(link, article_id, board)
+                    if div == divs[-1] and i == end-start:
+                        store(
+                            filename,
+                            parse(link, article_id, board) +
+                            '\n', 'a')
+                    else:
+                        store(
+                            filename,
+                            parse(link, article_id, board) +
+                            ',\n', 'a')
                 except:
                     pass
             time.sleep(TIME_DELAY)
 
-        store(filename, data)
+        store(filename, u']}', 'a')
 
     board = args.b
 
@@ -130,10 +169,10 @@ def parse(link, article_id, board):
 
 
     # insert rules here
-    print(title)
-    if u'換票' in title:
-        if any(x in title for x in (u'阿妹', u'張惠妹', u'烏托邦')) == True:
-            print('GOT IT!!')
+    # print(title)
+    if u'售票' in title and (any(x in title for x in (u'阿妹', \
+        u'張惠妹', u'烏托邦')) == True):
+        print('GOT IT!!')
     else:
         return None
 
@@ -198,12 +237,15 @@ def parse(link, article_id, board):
         'messages': messages
     }
 
-    _u = data["article_title"] + "\n" + data["author"] + "\n" + data["content"]+ "\n"
+    add_post(
+        data["article_id"],
+        data["article_title"],
+        data["date"],
+        data["author"],
+        data["content"])
 
 
-    # print 'original:', d
-    # return json.dumps(data, indent=4, sort_keys=True, ensure_ascii=False)
-    return _u
+    return json.dumps(data, indent=4, sort_keys=True, ensure_ascii=False)
 
 
 def getLastPage(board):
@@ -218,30 +260,21 @@ def getLastPage(board):
     return int(first_page.group(1)) + 1
 
 
-gmail = Gmail()
+def store(filename, data, mode):
+    if data is not None:
+        with codecs.open(filename, mode, encoding='utf-8') as f:
+            f.write(data)
 
-def store(filename, data):
-    to = "allen.cause@gmail.com"
-    sender = "allen.cause@gmail.com"
-    subject = "subject"
-    msgHtml = "Hi<br/>Html Email"
-    msgPlain = codecs.encode(data, 'utf-8)')
 
-    gmail.SendMessage(sender, to, subject, msgHtml, msgPlain)
+EXECUTE_TIME = 1800
 
-    """
-    with codecs.open(filename, mode, encoding='utf-8') as f:
-        f.write(data)
-    """
 
-EXECUTE_TIME = 30
-
-"""
 def scheduler():
     crawler()
     threading.Timer(EXECUTE_TIME, scheduler).start()
     print("excution every %d seconds" % EXECUTE_TIME)
-"""
+
 
 if __name__ == '__main__':
-    crawler()
+    scheduler()
+    #crawler()
