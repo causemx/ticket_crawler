@@ -50,7 +50,7 @@ def add_post(article_id, article_title, date, author, content):
         print("send message...")
         gmail.SendMessage(
             "allen.cause@gmail.com",
-            "allen.cause@gmail.com",
+            "singleman0130@gmail.com",
             article_title,
             "",
             codecs.encode(data, 'utf-8'))
